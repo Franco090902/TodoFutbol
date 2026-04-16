@@ -630,3 +630,75 @@ CREATE POLICY "Usuarios insertan sus mensajes al bot"
   WITH CHECK (auth.uid() = user_id);
   /*
 
+
+
+Segundo cambio 
+-- PASO 1
+ALTER TABLE public.articulos
+  ADD COLUMN IF NOT EXISTS autor_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS publicado BOOLEAN NOT NULL DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+CREATE INDEX IF NOT EXISTS idx_articulos_created ON public.articulos(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_articulos_categoria ON public.articulos(categoria);
+
+-- PASO 2
+ALTER TABLE public.productos_ml
+  ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+CREATE INDEX IF NOT EXISTS idx_productos_categoria ON public.productos_ml(categoria_relacionada);
+
+-- PASO 3
+ALTER TABLE public.articulos ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Articulos: lectura para autenticados"
+  ON public.articulos FOR SELECT
+  TO authenticated
+  USING (publicado = TRUE);
+
+-- PASO 4
+ALTER TABLE public.productos_ml ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Productos: lectura para autenticados"
+  ON public.productos_ml FOR SELECT
+  TO authenticated
+  USING (activo = TRUE);
+
+-- PASO 5
+ALTER TABLE public.chatbot_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Chatbot: usuario ve su historial"
+  ON public.chatbot_logs FOR SELECT
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Chatbot: usuario inserta sus consultas"
+  ON public.chatbot_logs FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+-- PASO 6: Fix vista (DROP primero para poder cambiar columnas)
+DROP VIEW IF EXISTS public.ranking_usuarios;
+
+CREATE VIEW public.ranking_usuarios AS
+SELECT
+  p.id,
+  p.username,
+  p.avatar_url,
+  p.puntos_prode,
+  p.aciertos_exactos,
+  p.aciertos_signo,
+  ROW_NUMBER() OVER (
+    ORDER BY p.puntos_prode DESC, p.aciertos_exactos DESC
+  ) AS posicion
+FROM public.profiles p
+WHERE p.puntos_prode > 0
+ORDER BY p.puntos_prode DESC;
+
+
+
+Tercer cambio
+ALTER TABLE public.partidos
+  DROP COLUMN IF EXISTS posesion_local,
+  DROP COLUMN IF EXISTS posesion_visitante;
