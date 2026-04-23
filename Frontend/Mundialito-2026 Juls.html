@@ -806,6 +806,19 @@
     /* Ocultar app hasta que el auth esté listo */
     #app-wrapper { display: none; }
     #app-wrapper.visible { display: block; }
+
+.tienda-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+    
+    .producto-card {
+      background: var(--navy2);
+      /* ... el resto del CSS que te pasé ... */
+    }
+
   </style>
 </head>
 <body>
@@ -906,6 +919,8 @@
     <button class="tab-btn" onclick="switchTab('scorers',this)">⚽ Goleadores</button>
     <button class="tab-btn" onclick="switchTab('cards',this)">🟨 Tarjetas</button>
     <button class="tab-btn" onclick="switchTab('history',this)">🏆 Ediciones Pasadas</button>
+    <button class="tab-btn" onclick="switchTab('tienda', this)">🛒 Tienda ML</button>
+      
     <button class="tab-btn" onclick="switchTab('guide',this)">📖 Guía de Código</button>
   </div>
 
@@ -1101,6 +1116,14 @@
     <div id="editionCards"></div>
 
   </div>
+
+  <!-- ══ PANEL: PRODUCTOS ML ══ -->
+  <div id="panel-tienda" class="panel" style="display: none;">
+    <p class="section-label">Productos Recomendados</p>
+    <div class="tienda-grid" id="tiendaContent"></div>
+    <div class="paginacion" id="tiendaPaginacion"></div>
+  </div>
+
 
   <!-- ══ PANEL: GUÍA DE CÓDIGO ══ -->
   <div id="panel-guide" class="panel">
@@ -1487,6 +1510,7 @@ function switchTab(id, btn) {
   if (id === 'scorers') renderScorers();
   if (id === 'cards')   renderCards();
   if (id === 'history') renderHistory();
+  if (id === 'tienda') renderTienda(1);
 }
 
 /* ─────────────────────────────────────
@@ -1545,6 +1569,10 @@ function renderGroups(key) {
         }).join('')}
       </div>
     </div>`;
+
+
+    
+
 
   const matchHtml = `
     <div>
@@ -1891,6 +1919,52 @@ renderCards();
   window.abrirPartido = async (partidoId, estado) => {
     await initPartidoView(partidoId, estado);
   };
+
+function crearTarjetaProducto(producto) { return `
+    <div class="producto-card">
+      <img src="${producto.imagen_url}" alt="${producto.nombre}" class="prod-img" loading="lazy">
+      <div class="prod-nombre">${producto.nombre}</div>
+      <div class="prod-precio">${producto.precio}</div>
+      <a href="${producto.link_afiliado}" target="_blank" class="prod-btn">Ver en Mercado Libre</a>
+    </div>
+  `; }
+    function renderTienda(pagina) { paginaActual = pagina;
+  
+  // Calcular los índices para cortar el array
+  const inicio = (pagina - 1) * productosPorPagina;
+  const fin = inicio + productosPorPagina;
+  const productosPagina = PRODUCTOS_ML.slice(inicio, fin);
+  
+  // Inyectar los productos en el HTML
+  document.getElementById('tiendaContent').innerHTML = productosPagina.map(crearTarjetaProducto).join('');
+  
+  // Lógica para crear los botones de paginación
+  const totalPaginas = Math.ceil(PRODUCTOS_ML.length / productosPorPagina);
+  let botonesPaginacion = '';
+  
+  for (let i = 1; i <= totalPaginas; i++) {
+    botonesPaginacion += `<button class="pag-btn ${i === paginaActual ? 'active' : ''}" onclick="renderTienda(${i})">${i}</button>`;
+  }
+  
+  document.getElementById('tiendaPaginacion').innerHTML = botonesPaginacion; }
+    function mostrarDetallesPartido(equipoLocal, equipoVisitante) { // Filtrar productos que coincidan con cualquiera de los dos equipos
+  // Agregamos "General" por si quieres mostrar balones o botines neutros siempre
+  const productosRecomendados = PRODUCTOS_ML.filter(p => 
+    p.categoria_relacionada === equipoLocal || 
+    p.categoria_relacionada === equipoVisitante ||
+    p.categoria_relacionada === "General"
+  );
+
+  // Inyectar en el HTML del detalle del partido
+  document.getElementById('tituloPartido').textContent = `${equipoLocal} vs ${equipoVisitante}`;
+  
+  // Mostramos solo los primeros 4 recomendados para no saturar el modal/vista
+  document.getElementById('productosPartidoContent').innerHTML = 
+    productosRecomendados.slice(0, 4).map(crearTarjetaProducto).join('');
+    
+  // Aquí llamarías a tu código para mostrar el panel/modal de detalles
+  // document.getElementById('panel-detalles-partido').style.display = 'block'; }
+}
 </script>
 </body>
 </html>
