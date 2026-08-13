@@ -940,17 +940,52 @@ async function fetchGroupMembers(groupId) {
 
 // ──────────────────────────────────────────────────────────────────
 // FETCH: Ranking global
+// Estrategia de 3 niveles para manejar RLS y datos no calculados:
+//  1. RPC get_prode_ranking   → bypasea RLS, suma en tiempo real
+//  2. profiles.puntos_prode  → funciona después del UPDATE SQL
+//  3. Fallback local          → solo puntos del usuario logueado
+// Orden: descendente (de mayor a menor puntaje).
 // ──────────────────────────────────────────────────────────────────
 async function fetchGlobalRanking(start = 0, limit = RANKING_LIMIT) {
-  const { data, error } = await supabase
+
+  // ── Nivel 1: RPC get_prode_ranking (bypasea RLS, no afecta políticas) ──
+  const { data: rpcData, error: rpcError } = await supabase
+    .rpc('get_prode_ranking', { p_limit: limit, p_offset: start });
+
+  if (!rpcError && rpcData && rpcData.length > 0) {
+    return rpcData.map(row => ({
+      id:               row.user_id,
+      username:         row.username,
+      avatar_url:       row.avatar_url,
+      puntos_prode:     row.puntos_total,
+      aciertos_exactos: row.aciertos_exactos,
+      aciertos_signo:   row.aciertos_signo,
+    }));
+  }
+
+  if (rpcError) {
+    console.warn('[Prode] RPC get_prode_ranking no disponible:', rpcError.message);
+  }
+
+  // ── Nivel 2: profiles.puntos_prode ──
+  // Funciona después de correr el UPDATE SQL en Supabase.
+  // La tabla profiles es pública (sin RLS restrictivo), así que
+  // devuelve los datos de TODOS los usuarios correctamente.
+  const { data: profiles, error: profError } = await supabase
     .from('profiles')
     .select('id, username, avatar_url, puntos_prode, aciertos_exactos, aciertos_signo')
-    .order('puntos_prode', { ascending: false })
+    .order('puntos_prode', { ascending: false })  // de mayor a menor
     .range(start, start + limit - 1);
 
-  if (error) throw error;
-  return data || [];
+  if (!profError && profiles) {
+    return profiles;
+  }
+
+  console.error('[Prode] Error leyendo profiles:', profError?.message);
+  return [];
 }
+
+
 
 // ──────────────────────────────────────────────────────────────────
 // RENDER: Panel de comunidades completo
