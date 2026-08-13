@@ -2775,33 +2775,35 @@ function parsearCalendario(textoRespuesta) {
 // FUNCIÓN AUXILIAR: buscar información en internet usando Tavily
 // ──────────────────────────────────────────────────────────────────
 async function buscarEnInternet(query) {
-  // Recargar .env por si el archivo se guardó mientras el servidor estaba corriendo
-  require('dotenv').config({ override: true });
-  
   if (!process.env.TAVILY_API_KEY) {
-    console.warn("⚠️ Falta TAVILY_API_KEY en el .env, omitiendo búsqueda en internet.");
+    console.warn("⚠️ Falta TAVILY_API_KEY en process.env, omitiendo búsqueda en internet.");
     return "";
   }
-  
-  console.log("🌐 Buscando en internet con Tavily la consulta:", query);
-  
+
+  // Si la consulta no menciona 'mundial', le agregamos contexto para mejores resultados en Tavily
+  const consultaOptimizada = query.toLowerCase().includes('mundial') 
+    ? query 
+    : `Mundial 2026 ${query}`;
+
+  console.log("🌐 Buscando en internet con Tavily la consulta:", consultaOptimizada);
+
   try {
     const response = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         api_key: process.env.TAVILY_API_KEY,
-        query: query,
+        query: consultaOptimizada,
         search_depth: "basic",
         max_results: 3
       })
     });
-    
+
     if (!response.ok) {
-      console.warn("⚠️ Error en respuesta de Tavily:", response.status);
+      console.warn("⚠️ Error en respuesta de Tavily (HTTP " + response.status + ")");
       return "";
     }
-    
+
     const data = await response.json();
     if (data && data.results && data.results.length > 0) {
       console.log(`   ✅ Tavily encontró ${data.results.length} resultados.`);
